@@ -2,6 +2,7 @@ const contractInfos: {
   [network: string]: {
     [asset: string]: {
       contract_address: string;
+      migration_amount?: string;
       black_list?: string[];
     };
   };
@@ -12,9 +13,11 @@ const contractInfos: {
     },
     LUNA: {
       contract_address: '0xECCF35F941Ab67FfcAA9A1265C2fF88865caA005',
+      migration_amount: '670000000000000000000', // 670.000,000,000,000,000,000
     },
     UST: {
       contract_address: '0x23396cF899Ca06c4472205fC903bDB4de249D6fC',
+      migration_amount: '2400000000000000000000000', // 2,400,000.000,000,000,000,000,000
     },
     KRT: {
       contract_address: '0xfFBDB9BDCae97a962535479BB96cC2778D65F4dd',
@@ -123,10 +126,6 @@ const contractInfos: {
     aUST: {
       contract_address: '0x006479f75D6622AE6a21BE17C7F555B94c672342',
     },
-    bETH: {
-      contract_address: '0xDD7e8f8047D78bB103FAb4bAc1259Da207Da3861',
-      black_list: ['0xA60100d5e12E9F83c1B04997314cf11685A618fF'],
-    },
   },
   mainnet: {
     minter: {
@@ -134,9 +133,11 @@ const contractInfos: {
     },
     LUNA: {
       contract_address: '0xd2877702675e6cEb975b4A1dFf9fb7BAF4C91ea9',
+      migration_amount: '580000000000000000000000', // 580,000.000,000,000,000,000,000
     },
     UST: {
       contract_address: '0xa47c8bf37f92aBed4A126BDA807A7b7498661acD',
+      migration_amount: '72000000000000000000000000', // 72,000,000.000,000,000,000,000,000
     },
     KRT: {
       contract_address: '0xcAAfF72A8CbBfc5Cf343BA4e26f65a257065bFF1',
@@ -200,10 +201,6 @@ const contractInfos: {
     },
     mCOIN: {
       contract_address: '0x1e25857931F75022a8814e0B0c3a371942A88437',
-    },
-    bETH: {
-      contract_address: '0xF9dcf31EE6EB94AB732A43c2FbA1dC6179c98965',
-      black_list: ['0x707F9118e33A9B8998beA41dd0d46f38bb963FC8'],
     },
   },
 };

@@ -39,7 +39,7 @@ export class FeeCollector {
   LCDClient: LCDClient;
   FeeCollectorAddr: AccAddress;
 
-  EthContracts: { [asset: string]: Contract };
+  EthContractInfos: { [asset: string]: EthereumContractInfo };
   TerraAssetInfos: {
     [asset: string]: TerraAssetInfo;
   };
@@ -66,7 +66,7 @@ export class FeeCollector {
     const ethContractInfos = EthContractInfos[ETH_CHAIN_ID];
     const terraAssetInfos = TerraAssetInfos[TERRA_CHAIN_ID];
 
-    this.EthContracts = {};
+    this.EthContractInfos = {};
     this.TerraAssetInfos = {};
 
     for (const [asset, value] of Object.entries(ethContractInfos)) {
@@ -86,30 +86,27 @@ export class FeeCollector {
         throw new Error('Must provide one of denom and contract_address');
       }
 
-      if (info.denom !== undefined && info.is_eth_asset) {
-        throw new Error('Native asset is not eth asset');
-      }
-
       const contract = new this.Web3.eth.Contract(
         WrappedTokenAbi,
         value.contract_address
       );
 
-      this.EthContracts[asset] = contract;
+      this.EthContractInfos[asset] = {
+        contract,
+        migration_amount: new BigNumber(value.migration_amount || 0),
+      };
       this.TerraAssetInfos[asset] = info;
     }
   }
 
-  isEthAsset(asset: string): boolean {
-    return this.TerraAssetInfos[asset].is_eth_asset ? true : false;
-  }
-
   async getTotalSupplies(): Promise<[string, BigNumber][]> {
     const promises: [string, BigNumber][] = [];
-    for (const [asset, contract] of Object.entries(this.EthContracts)) {
+    for (const [asset, contractInfo] of Object.entries(this.EthContractInfos)) {
       promises.push([
         asset,
-        new BigNumber(await getSupply(contract, MAX_RETRY)),
+        new BigNumber(await getSupply(contractInfo.contract, MAX_RETRY)).minus(
+          contractInfo.migration_amount
+        ),
       ]);
     }
 
@@ -165,7 +162,7 @@ export class FeeCollector {
         msgs.push(
           new MsgSend(fromAddr, toAddr, [new Coin(denom, afterAmount)])
         );
-      } else if (info.contract_address && !info.is_eth_asset) {
+      } else if (info.contract_address) {
         const contract_address = info.contract_address;
 
         msgs.push(
@@ -174,22 +171,6 @@ export class FeeCollector {
             contract_address,
             {
               transfer: {
-                recipient: toAddr,
-                amount: amountStr,
-              },
-            },
-            []
-          )
-        );
-      } else if (info.contract_address && info.is_eth_asset) {
-        const contract_address = info.contract_address;
-
-        msgs.push(
-          new MsgExecuteContract(
-            fromAddr,
-            contract_address,
-            {
-              mint: {
                 recipient: toAddr,
                 amount: amountStr,
               },
@@ -254,8 +235,12 @@ async function getSupply(
     });
 }
 
+type EthereumContractInfo = {
+  contract: Contract;
+  migration_amount: BigNumber;
+};
+
 type TerraAssetInfo = {
-  is_eth_asset?: boolean;
   contract_address?: string;
   denom?: string;
 };

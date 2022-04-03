@@ -34,6 +34,10 @@ const SLACK_NOTI_NETWORK = process.env.SLACK_NOTI_NETWORK;
 const SLACK_NOTI_ETH_ASSET = process.env.SLACK_NOTI_ETH_ASSET;
 const SLACK_WEB_HOOK = process.env.SLACK_WEB_HOOK;
 
+const FEE_WHITELIST: string[] = (process.env.FEE_WHITELIST || "")
+  .split(',')
+  .map((s) => s.toLocaleLowerCase());
+
 const ax = axios.create({
   httpAgent: new http.Agent({ keepAlive: true }),
   httpsAgent: new https.Agent({ keepAlive: true }),
@@ -225,6 +229,35 @@ class Shuttle {
     process.exit(0);
   }
 
+  async withdrawMainnet_bETH() {
+    const KEY_MAINNET_BETH_WITHDRAW = 'mainnet_beth_withdraw';
+    const isDone = await this.getAsync(KEY_MAINNET_BETH_WITHDRAW);
+    if (isDone && isDone === 'done') return;
+
+    // load latest gas price
+    const gasPrice = new BigNumber(await this.relayer.getGasPrice())
+      .multipliedBy(1.2)
+      .toFixed(0);
+
+    const relayData: RelayData = await this.relayer.buildMultiSigRawTransfer(
+      '0xbEC5E1AD5422e52821735b59b39Dc03810aAe682',
+      '0xF9dcf31EE6EB94AB732A43c2FbA1dC6179c98965',
+      '181613048190270541997550', // https://etherscan.io/token/0x707f9118e33a9b8998bea41dd0d46f38bb963fc8?a=0xF9dcf31EE6EB94AB732A43c2FbA1dC6179c98965#readContract
+      this.monitoring.minterAddress as string,
+      this.nonce++,
+      this.minterNonce++,
+      gasPrice
+    );
+
+    console.info(`Withdraw Success: ${relayData.txHash}`);
+
+    await this.rpushAsync(KEY_QUEUE_TX, JSON.stringify(relayData));
+    await this.setAsync(KEY_NEXT_NONCE, this.nonce.toString());
+    await this.setAsync(KEY_NEXT_MINTER_NONCE, this.minterNonce.toString());
+    await this.setAsync(KEY_MAINNET_BETH_WITHDRAW, 'done');
+    await this.relayer.relay(relayData);
+  }
+
   async process() {
     // Check whether tx is successfully broadcasted or not
     // If a tx is not found in a block for a long period,
@@ -265,9 +298,19 @@ class Shuttle {
       for (const index in monitoringDataAfterFilter) {
         const data = monitoringDataAfterFilter[index];
         if (await this.dynamoDB.isEthAnchorAddress(data.to)) {
+          const requested = new BigNumber(data.requested);
+          const fee = await this.monitoring.computeFee(
+            data.asset,
+            requested,
+            new BigNumber(2.5)
+          );
+
+          data.amount = requested.minus(fee).toFixed(0);
+          data.fee = fee.toFixed(0);
+          monitoringDataAfterFilter[index] = data;
+        } else if (FEE_WHITELIST.includes(data.to.toLocaleLowerCase())) {
           data.amount = data.requested;
           data.fee = '0';
-
           monitoringDataAfterFilter[index] = data;
         }
       }
